@@ -2,7 +2,7 @@
 A repository dedicated to ML-based quantitative finance
 
 #### To collect equity data
-Comma separated list:\n
+Comma separated list:
 python get_equity_data.py --equities=AAPL,IBM,FB
 
 All available US equities on Nasdaq, NYSE, and AMEX:
