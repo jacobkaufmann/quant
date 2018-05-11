@@ -1,7 +1,7 @@
 # quant
 A repository dedicated to ML-based quantitative finance
 
-### To collect equity data
+### Collect equity data
 ##### Comma separated list:
 
 python get_equity_data.py --equities=AAPL,IBM,FB
