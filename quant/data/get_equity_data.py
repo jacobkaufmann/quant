@@ -9,7 +9,7 @@ from pandas_datareader import data as web
 import fix_yahoo_finance as yf
 import wget
 
-tf.app.flags.DEFINE_string('equity', '', 'equity')
+tf.app.flags.DEFINE_string('equities', '', 'Equities')
 tf.app.flags.DEFINE_string('all_equities', 'No', 'All equities')
 tf.app.flags.DEFINE_string('adjust', 'No', 'Adjust OHLC')
 FLAGS = tf.app.flags.FLAGS
@@ -46,9 +46,8 @@ def get_data_for_equity(equity, start, end=None, adjusted=False):
 def main(unused_arg):
     yf.pdr_override()
 
-    """
-    Make directories for pre-processed and post-processed data
-    """
+    # Make directories for pre-processed and post-processed data
+
     make_directories()
     start = datetime(1980, 1, 1)
     equities = []
@@ -74,11 +73,9 @@ def main(unused_arg):
                                      amex_symbols), axis=0)
         equities = all_symbols[:,0]
 
-    """
-    Otherwise use the single equity passed in
-    """
+    # Otherwise use the comma separated list of tickers
     else:
-        equities = [FLAGS.equity]
+        equities = FLAGS.equities.upper().split(',')
 
     """
     Loop over all equities and write pre-processed data to csv files in
