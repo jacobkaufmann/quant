@@ -86,7 +86,7 @@ def main(unused_arg):
         if not os.path.isfile(equity_file):
             if FLAGS.adjust.lower() == yes:
                 data = get_data_for_equity(equity, start, adjusted=True)
-                data.to_csv()
+                data.to_csv(equity_file)
             else:
                 equity_file = 'data/equities/pre-processed/%s.csv' % equity
                 data = get_data_for_equity(equity, start)
