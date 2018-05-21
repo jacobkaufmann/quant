@@ -1,9 +1,13 @@
 import os
 from datetime import datetime
+from glob import glob
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+
+from sklearn.utils import shuffle
+from sklearn.model_selection import train_test_split
 
 tf.app.flags.DEFINE_string('equities', '', 'Equities')
 tf.app.flags.DEFINE_string('all_equities', 'No', 'All equities')
@@ -34,7 +38,7 @@ def _price_change(equity, periods=1):
 
     Returns: None - appends 'Change' column to DataFrame
     """
-    equity['Change_%dd' % periods] = equity['Close'].diff(periods=periods)
+    equity['Change_%dd' % periods] = equity['Close'].shift(-periods) - equity['Close']
 
 def _percent_change(equity, periods=1):
     """Calculate percent change in price
@@ -46,10 +50,11 @@ def _percent_change(equity, periods=1):
     Returns: None - appends 'Pct_Change' column to DataFrame
     """
     equity['Pct_Change_%dd' % periods] = \
-                                    equity['Close'].pct_change(periods=periods)
+                                    (equity['Close'].shift(-periods) -
+                                     equity['Close']) / equity['Close']
 
 def _sma(equity, periods, input_column_name='Close', output_column_name=''):
-    """Calculate simple moving average
+    """Calculate Simple Moving Average (SMA)
 
     Args:
         equity: string denoting equity
@@ -70,7 +75,7 @@ def _sma(equity, periods, input_column_name='Close', output_column_name=''):
                                               min_periods=periods).mean()
 
 def _ema(equity, periods, input_column_name='Close', output_column_name=''):
-    """Calculate exponential moving average
+    """Calculate Exponential Moving Average (EMA)
 
     Args:
         equity: pandas DataFrame containing equity data
@@ -91,7 +96,7 @@ def _ema(equity, periods, input_column_name='Close', output_column_name=''):
                                           min_periods=periods).mean()
 
 def _rsi(equity, look_back_period=14):
-    """Calculate relative strength index
+    """Calculate Relative Strength Index (RSI)
 
     Args:
         equity: pandas DataFrame containing equity data
@@ -100,7 +105,7 @@ def _rsi(equity, look_back_period=14):
     Returns: None - appends 'RSI' column to DataFrame
     """
     if 'Change_1d' not in equity.columns:
-        price_change(equity, 1)
+        _price_change(equity, 1)
     equity['Gain_1d'] = [x if x >= 0 else 0 for x in equity['Change_1d'].values]
     equity['Loss_1d'] = [-x if x < 0 else 0 for x in equity['Change_1d'].values]
 
@@ -113,11 +118,11 @@ def _rsi(equity, look_back_period=14):
     equity['RSI_%dd' % look_back_period] = 100 - (100/(1 + (equity['RS'])))
 
     # Drop unnecessary columns
-    equity.drop(['Avg_Gain', 'Avg_Loss', 'Gain_1d', 'Loss_1d', 'RS'], axis=1,
-                inplace=True)
+    equity.drop(['Avg_Gain', 'Avg_Loss', 'Gain_1d', 'Change_1d',
+                 'Loss_1d', 'RS'], axis=1, inplace=True)
 
-def _macd(equity, short=12, long=26, signal=9):
-    """Calculate Moving Average Convergence Divergence (MACD)
+def _ppo(equity, short=12, long=26, signal=9):
+    """Calculate Percentage Price Oscillator (PPO)
 
     Args:
         equity: pandas DataFrame containing equity data
@@ -125,7 +130,7 @@ def _macd(equity, short=12, long=26, signal=9):
         long: number of periods for longer exponential moving average
         signal: number of periods for exponential moving average of macd line
 
-    Returns: None - appends columns 'MACD', 'MACD_Signal', and 'MACD_Hist' to
+    Returns: None - appends columns 'PPO', 'PPO_Signal', and 'PPO_Hist' to
              DataFrame
     """
 
@@ -134,21 +139,22 @@ def _macd(equity, short=12, long=26, signal=9):
     if ('EMA_%dd' % long) not in equity.columns: _ema(equity, long)
 
     # Calculate DataFrame columns for MACD, MACD_Signal, and MACD_Hist
-    equity['MACD_%d_%d_%d' % (short, long, signal)] = equity['EMA_%dd' % short] - \
-                                                        equity['EMA_%dd' % long]
-    equity['MACD_%d_%d_%d_Signal' % (short, long, signal)] = \
-            equity['MACD_%d_%d_%d' % (short, long, signal)].ewm(span=signal,
+    equity['PPO_%d_%d_%d' % (short, long, signal)] = ((equity['EMA_%dd' % short] -
+                                                      equity['EMA_%dd' % long]) / \
+                                                      equity['EMA_%dd' % long]) * 100.0
+    equity['PPO_%d_%d_%d_Signal' % (short, long, signal)] = \
+            equity['PPO_%d_%d_%d' % (short, long, signal)].ewm(span=signal,
                                 adjust=False, min_periods=signal).mean()
-    equity['MACD_%d_%d_%d_Hist' % (short, long, signal)] = \
-            equity['MACD_%d_%d_%d' % (short, long, signal)] - \
-                equity['MACD_%d_%d_%d_Signal' % (short, long, signal)]
+    equity['PPO_%d_%d_%d_Hist' % (short, long, signal)] = \
+            equity['PPO_%d_%d_%d' % (short, long, signal)] - \
+                equity['PPO_%d_%d_%d_Signal' % (short, long, signal)]
 
     # Drop unnecessary columns
     equity.drop([('EMA_%dd' % short), ('EMA_%dd' % long)], axis=1, inplace=True)
 
 def _full_stochastic_oscillator(equity, look_back_period=14, k_smoothing=3,
                                d_ma=3):
-    """Calculate Moving Average Convergence Divergence (MACD)
+    """Calculate Full Stochastics
 
     Args:
         equity: pandas DataFrame containing equity data
@@ -161,15 +167,15 @@ def _full_stochastic_oscillator(equity, look_back_period=14, k_smoothing=3,
 
     # Determine lowest low and highest high for look_back_period
     equity['Lowest_Low'] = \
-            equity['Low'].rolling(window=look_back_period,
+            equity['Low'].rolling(window=look_back_period, \
                                   min_periods=look_back_period).min()
     equity['Highest_High'] = \
-            equity['High'].rolling(window=look_back_period,
-                                  min_periods=look_back_period).max()
+            equity['High'].rolling(window=look_back_period, \
+                                   min_periods=look_back_period).max()
 
     # Calculate %K and %D
-    equity['K_Fast'] = (equity['Close'] - equity['Lowest_Low']) / \
-                   (equity['Highest_High'] - equity['Lowest_Low']) * 100
+    equity['K_Fast'] = ((equity['Close'] - equity['Lowest_Low']) /
+                        (equity['Highest_High'] - equity['Lowest_Low'])) * 100.0
     _sma(equity, k_smoothing, input_column_name='K_Fast',
          output_column_name='K_%d_%d_%d' % (look_back_period, k_smoothing, d_ma))
 
@@ -179,15 +185,33 @@ def _full_stochastic_oscillator(equity, look_back_period=14, k_smoothing=3,
     # Drop unnecessary columns
     equity.drop(['Lowest_Low', 'Highest_High', 'K_Fast'], axis=1, inplace=True)
 
+def _determine_label(equity, periods):
+    """Determine target label based on percent change
+
+    Args:
+        equity: DataFrame containing equity data
+        periods: number of periods to calculate percent change over
+
+    Returns: None - appends column 'Label' with value either 1(buy) or -1(sell)
+    """
+
+    pct_change_col = 'Pct_Change_%dd' % periods
+    if pct_change_col not in equity.columns:
+        _percent_change(equity, periods)
+    equity['Label'] = [1 if x > 0 else 0 for x in equity[pct_change_col].values]
+
+    # Drop unnecessary columns
+    equity.drop([pct_change_col], axis=1, inplace=True)
+
 def main(unused_arg):
     equity_files = []
 
     # Determine which equities are to be processed based on command line flags
     if FLAGS.all_equities.lower() == 'yes':
         if FLAGS.use_adjusted.lower() == 'yes':
-            equity_files = os.listdir('data/equities/adjusted-pre-processed')
+            equity_files = glob('data/equities/adjusted-pre-processed/*.csv')
         else:
-            equity_files = os.listdir('data/equities/pre-processed')
+            equity_files = glob('data/equities/pre-processed/*.csv')
     else:
         equities = FLAGS.equities.upper().split(',')
         if FLAGS.use_adjusted.lower() == 'yes':
@@ -199,26 +223,39 @@ def main(unused_arg):
                 equity_files.append(('data/equities/pre-processed/%s.csv'
                                      % equity))
 
+    # Master DataFrame to hold all data
+    master = pd.DataFrame()
+
     for file in equity_files:
         equity = _read_data(file)
 
+        # Check to make sure file has information
+        if equity.empty:
+            continue
+
         # Perform processing
-        _price_change(equity)
-        _percent_change(equity)
-        _ema(equity, 10)
-        _sma(equity, 10)
         _rsi(equity)
-        _macd(equity)
+        _ppo(equity)
         _full_stochastic_oscillator(equity)
+        _determine_label(equity, 10)
 
         # Drop unnecessary columns
-        equity.drop(['Date', 'Open', 'High', 'Low', 'Close'], axis=1, inplace=True)
+        equity.drop(['Date', 'Open', 'High', 'Low', 'Close', 'Volume'],
+                    axis=1, inplace=True)
 
         # Remove any rows containing missing values and reset index column
         equity.dropna(axis=0, how='any', inplace=True)
         equity.reset_index(drop=True, inplace=True)
 
-        print(equity)
+        # Append data to master DataFrame
+        master = pd.concat([master, equity], ignore_index=True)
+
+    # Split into test and train
+    master = shuffle(master)
+    train, test = train_test_split(master, test_size=0.2)
+
+    train.to_csv('data/equities/post-processed/train.csv', index=False)
+    test.to_csv('data/equities/post-processed/test.csv', index=False)
 
 if __name__ == '__main__':
     tf.app.run()
