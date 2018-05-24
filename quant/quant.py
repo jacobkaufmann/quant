@@ -9,10 +9,12 @@ import tensorflow.contrib.eager as tfe
 tf.enable_eager_execution()
 
 def parse_csv(line):
-  example_defaults = [[0.], [0.], [0.], [0.], [0.], [0.], [0]]  # sets field types
+  # Set field types
+  example_defaults = [[0.], [0.], [0.], [0.], [0.], [0.], [0.], [0.], [0.], 
+                      [0.], [0.], [0.], [0]]
   parsed_line = tf.decode_csv(line, example_defaults)
   # First 6 fields are features, combine into single tensor
-  features = tf.reshape(parsed_line[:-1], shape=(6,))
+  features = tf.reshape(parsed_line[:-1], shape=(12,))
   # Last field is the label
   label = tf.reshape(parsed_line[-1], shape=())
   return features, label
@@ -30,7 +32,7 @@ train_dataset = tf.data.TextLineDataset('data/data/equities/post-processed/train
 train_dataset = train_dataset.skip(1)             # skip the first header row
 train_dataset = train_dataset.map(parse_csv)      # parse each row
 train_dataset = train_dataset.shuffle(buffer_size=1000)  # randomize
-train_dataset = train_dataset.batch(32)
+train_dataset = train_dataset.batch(16)
 
 # View a single example entry from a batch
 features, label = iter(train_dataset).next()
@@ -38,15 +40,16 @@ print("example features:", features[0])
 print("example label:", label[0])
 
 model = tf.keras.Sequential([
-  tf.keras.layers.Dense(10, activation="relu", input_shape=(6,)),  # input shape required
-  tf.keras.layers.Dense(20, activation="relu"),
-  tf.keras.layers.Dense(30, activation="relu"),
-  tf.keras.layers.Dense(20, activation="relu"),
-  tf.keras.layers.Dense(10, activation="relu"),
-  tf.keras.layers.Dense(2)
+  tf.keras.layers.Dense(16, activation="relu", input_shape=(12,)),  # input shape required
+  tf.keras.layers.Dense(32, activation="relu"),
+  tf.keras.layers.Dense(64, activation="relu"),
+  tf.keras.layers.Dense(32, activation="relu"),
+  tf.keras.layers.Dense(16, activation="relu"),
+  tf.keras.layers.Dense(3)
 ])
 
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.005)
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.01)
+
 
 # keep results for plotting
 train_loss_results = []
