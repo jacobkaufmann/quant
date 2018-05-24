@@ -95,7 +95,7 @@ def _ema(equity, periods, input_column_name='Close', output_column_name=''):
             equity[input_column_name].ewm(span=periods, adjust=False,
                                           min_periods=periods).mean()
 
-def _rsi(equity, look_back_period=14):
+def _rsi(equity, look_back_period=14, dow=False):
     """Calculate Relative Strength Index (RSI)
 
     Args:
@@ -115,13 +115,16 @@ def _rsi(equity, look_back_period=14):
                             min_periods=look_back_period).sum() / look_back_period
 
     equity['RS'] = equity['Avg_Gain'] / equity['Avg_Loss']
-    equity['RSI_%dd' % look_back_period] = 100 - (100/(1 + (equity['RS'])))
+    if not dow:
+        equity['RSI_%dd' % look_back_period] = 100 - (100/(1 + (equity['RS'])))
+    else:
+        equity['DOW_RSI_%dd' % look_back_period] = 100 - (100/(1 + (equity['RS'])))
 
     # Drop unnecessary columns
     equity.drop(['Avg_Gain', 'Avg_Loss', 'Gain_1d', 'Change_1d',
                  'Loss_1d', 'RS'], axis=1, inplace=True)
 
-def _ppo(equity, short=12, long=26, signal=9):
+def _ppo(equity, short=12, long=26, signal=9, dow=False):
     """Calculate Percentage Price Oscillator (PPO)
 
     Args:
@@ -139,21 +142,32 @@ def _ppo(equity, short=12, long=26, signal=9):
     if ('EMA_%dd' % long) not in equity.columns: _ema(equity, long)
 
     # Calculate DataFrame columns for MACD, MACD_Signal, and MACD_Hist
-    equity['PPO_%d_%d_%d' % (short, long, signal)] = ((equity['EMA_%dd' % short] -
-                                                      equity['EMA_%dd' % long]) / \
-                                                      equity['EMA_%dd' % long]) * 100.0
-    equity['PPO_%d_%d_%d_Signal' % (short, long, signal)] = \
-            equity['PPO_%d_%d_%d' % (short, long, signal)].ewm(span=signal,
-                                adjust=False, min_periods=signal).mean()
-    equity['PPO_%d_%d_%d_Hist' % (short, long, signal)] = \
-            equity['PPO_%d_%d_%d' % (short, long, signal)] - \
-                equity['PPO_%d_%d_%d_Signal' % (short, long, signal)]
+    if not dow:
+        equity['PPO_%d_%d_%d' % (short, long, signal)] = ((equity['EMA_%dd' % short] -
+                                                        equity['EMA_%dd' % long]) / \
+                                                        equity['EMA_%dd' % long]) * 100.0
+        equity['PPO_%d_%d_%d_Signal' % (short, long, signal)] = \
+                equity['PPO_%d_%d_%d' % (short, long, signal)].ewm(span=signal,
+                                    adjust=False, min_periods=signal).mean()
+        equity['PPO_%d_%d_%d_Hist' % (short, long, signal)] = \
+                equity['PPO_%d_%d_%d' % (short, long, signal)] - \
+                    equity['PPO_%d_%d_%d_Signal' % (short, long, signal)]
+    else:
+        equity['DOW_PPO_%d_%d_%d' % (short, long, signal)] = ((equity['EMA_%dd' % short] -
+                                                        equity['EMA_%dd' % long]) / \
+                                                        equity['EMA_%dd' % long]) * 100.0
+        equity['DOW_PPO_%d_%d_%d_Signal' % (short, long, signal)] = \
+                equity['DOW_PPO_%d_%d_%d' % (short, long, signal)].ewm(span=signal,
+                                    adjust=False, min_periods=signal).mean()
+        equity['DOW_PPO_%d_%d_%d_Hist' % (short, long, signal)] = \
+                equity['DOW_PPO_%d_%d_%d' % (short, long, signal)] - \
+                    equity['DOW_PPO_%d_%d_%d_Signal' % (short, long, signal)]
 
     # Drop unnecessary columns
     equity.drop([('EMA_%dd' % short), ('EMA_%dd' % long)], axis=1, inplace=True)
 
 def _full_stochastic_oscillator(equity, look_back_period=14, k_smoothing=3,
-                               d_ma=3):
+                               d_ma=3, dow=False):
     """Calculate Full Stochastics
 
     Args:
@@ -176,11 +190,18 @@ def _full_stochastic_oscillator(equity, look_back_period=14, k_smoothing=3,
     # Calculate %K and %D
     equity['K_Fast'] = ((equity['Close'] - equity['Lowest_Low']) /
                         (equity['Highest_High'] - equity['Lowest_Low'])) * 100.0
-    _sma(equity, k_smoothing, input_column_name='K_Fast',
-         output_column_name='K_%d_%d_%d' % (look_back_period, k_smoothing, d_ma))
+    if not dow:
+        _sma(equity, k_smoothing, input_column_name='K_Fast',
+            output_column_name='K_%d_%d_%d' % (look_back_period, k_smoothing, d_ma))
 
-    _sma(equity, d_ma, input_column_name='K_%d_%d_%d' % (look_back_period, k_smoothing, d_ma),
-         output_column_name='D_%d_%d_%d' % (look_back_period, k_smoothing, d_ma))
+        _sma(equity, d_ma, input_column_name='K_%d_%d_%d' % (look_back_period, k_smoothing, d_ma),
+            output_column_name='D_%d_%d_%d' % (look_back_period, k_smoothing, d_ma))
+    else:
+        _sma(equity, k_smoothing, input_column_name='K_Fast',
+         output_column_name='DOW_K_%d_%d_%d' % (look_back_period, k_smoothing, d_ma))
+
+        _sma(equity, d_ma, input_column_name='DOW_K_%d_%d_%d' % (look_back_period, k_smoothing, d_ma),
+         output_column_name='DOW_D_%d_%d_%d' % (look_back_period, k_smoothing, d_ma))
 
     # Drop unnecessary columns
     equity.drop(['Lowest_Low', 'Highest_High', 'K_Fast'], axis=1, inplace=True)
@@ -198,10 +219,24 @@ def _determine_label(equity, periods):
     pct_change_col = 'Pct_Change_%dd' % periods
     if pct_change_col not in equity.columns:
         _percent_change(equity, periods)
-    equity['Label'] = [1 if x > 0 else 0 for x in equity[pct_change_col].values]
+    equity['Label'] = [2 if x > 0.05 else 1 if x < -.05 else 0 for x in equity[pct_change_col].values]
+    equity['Label'] = equity['Label'].astype('int64')
 
     # Drop unnecessary columns
     equity.drop([pct_change_col], axis=1, inplace=True)
+
+def _normalize(equity):
+    """Normalize input
+
+    Args:
+        equity: DataFrame containing equity data
+    
+    Returns: None - normalizes data in DataFrame
+    """
+    for column in equity.columns:
+        if column != 'Close':
+            equity[column] = (equity[column] - equity[column].mean()) / equity[column].std()
+
 
 def main(unused_arg):
     equity_files = []
@@ -223,6 +258,16 @@ def main(unused_arg):
                 equity_files.append(('data/equities/pre-processed/%s.csv'
                                      % equity))
 
+    # Process data for Dow
+    if FLAGS.use_adjusted.lower() == 'yes':
+        dow = _read_data('data/equities/adjusted-pre-processed/DJI.csv')
+    else:
+        dow = _read_data('data/equities/pre-processed/DJI.csv')
+    _rsi(dow, dow=True)
+    _ppo(dow, dow=True)
+    _full_stochastic_oscillator(dow, dow=True)
+    dow.drop(['Open', 'High', 'Low', 'Close', 'Volume'], axis=1, inplace=True)
+    
     # Master DataFrame to hold all data
     master = pd.DataFrame()
 
@@ -237,21 +282,43 @@ def main(unused_arg):
         _rsi(equity)
         _ppo(equity)
         _full_stochastic_oscillator(equity)
-        _determine_label(equity, 10)
 
-        # Drop unnecessary columns
-        equity.drop(['Date', 'Open', 'High', 'Low', 'Close', 'Volume'],
-                    axis=1, inplace=True)
+        # Merge in Dow data and drop unecessary columns
+        equity = pd.merge(equity, dow, on='Date')
+        equity.drop(['Open', 'High', 'Low', 'Date', 'Volume'], axis=1, inplace=True)
+        equity.dropna(axis=0, how='any', inplace=True)
+        equity.reset_index(drop=True, inplace=True)
+
+        # Normalize data
+        _normalize(equity)
+
+        # Determine label
+        _determine_label(equity, 20)
 
         # Remove any rows containing missing values and reset index column
         equity.dropna(axis=0, how='any', inplace=True)
         equity.reset_index(drop=True, inplace=True)
+
+        # Drop Close column
+        equity.drop(['Close'], axis=1, inplace=True)
 
         # Append data to master DataFrame
         master = pd.concat([master, equity], ignore_index=True)
 
     # Split into test and train
     master = shuffle(master)
+    total_buys = 0
+    total_sells = 0
+    total_holds = 0
+    for entry in master['Label'].values:
+        if entry == 0:
+            total_holds += 1
+        elif entry == 1:
+            total_sells += 1
+        else:
+            total_buys += 1
+    
+    print("Buys: %d\nSells: %d\nHolds: %d\n" % (total_buys, total_sells, total_holds))
     train, test = train_test_split(master, test_size=0.2)
 
     train.to_csv('data/equities/post-processed/train.csv', index=False)

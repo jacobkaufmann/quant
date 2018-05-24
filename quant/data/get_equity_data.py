@@ -84,13 +84,19 @@ def main(unused_arg):
     for equity in equities:
         equity_file = 'data/equities/adjusted-pre-processed/%s.csv' % equity
         if not os.path.isfile(equity_file):
-            if FLAGS.adjust.lower() == yes:
+            if FLAGS.adjust.lower() == 'yes':
                 data = get_data_for_equity(equity, start, adjusted=True)
                 data.to_csv(equity_file)
             else:
                 equity_file = 'data/equities/pre-processed/%s.csv' % equity
                 data = get_data_for_equity(equity, start)
                 data.to_csv(equity_file)
+
+    # Get data for Dow Jones Industrial Average
+    dow = get_data_for_equity('DJI', start, adjusted=True)
+    dow.to_csv('data/equities/adjusted-pre-processed/DJI.csv')
+    dow = get_data_for_equity('DJI', start, adjusted=False)
+    dow.to_csv('data/equities/pre-processed/DJI.csv')
 
 if __name__ == '__main__':
     tf.app.run()
