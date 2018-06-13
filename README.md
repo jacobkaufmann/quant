@@ -8,7 +8,7 @@ python get_equity_data.py --equities=AAPL,IBM,FB
 ```
 #### All available US equities on Nasdaq, NYSE, and AMEX:
 ```
-  python get_equity_data.py --all_equities=yes
+python get_equity_data.py --all_equities=yes
 ```
 ## Process equity data
 #### Comma separated list:
