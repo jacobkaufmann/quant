@@ -1,7 +1,7 @@
 # quant
 A repository dedicated to ML-based quantitative finance
 
-### Collect equity data
+## Collect equity data
 #### Comma separated list:
 ```
 python get_equity_data.py --equities=AAPL,IBM,FB
@@ -10,7 +10,7 @@ python get_equity_data.py --equities=AAPL,IBM,FB
 ```
   python get_equity_data.py --all_equities=yes
 ```
-### Process equity data
+## Process equity data
 #### Comma separated list:
 ```
 python process_equity_data.py --equities=AAPL,IBM,FB
@@ -19,7 +19,7 @@ python process_equity_data.py --equities=AAPL,IBM,FB
 ```
 python process_equity_data.py --all_equities=yes
 ```
-### Train and Test DNN
+## Train and Test DNN
 ```
 python quant.py
 ```
