@@ -1,5 +1,8 @@
 # quant
-A repository dedicated to ML-based quantitative finance
+A repository dedicated to deep learning based quantitative finance
+
+v2 development is underway to utilize the Alpha Vantage API
+v1 instructions below
 
 ## Collect equity data
 #### Comma separated list:
